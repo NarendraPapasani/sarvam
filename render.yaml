@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: sarvam-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false          # Set manually in Render dashboard
+      - key: API_SECRET
+        sync: false          # Set manually in Render dashboard
+      - key: CORS_ORIGIN
+        sync: false          # Set manually in Render dashboard
+    healthCheckPath: /health
+    autoDeploy: true
