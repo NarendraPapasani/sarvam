@@ -1,0 +1,236 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum PreferredLanguage {
+  ENGLISH
+  HINDI
+  HINGLISH
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLATION_PENDING
+  CANCELLED
+}
+
+enum PaymentMethod {
+  PREPAID
+  COD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUND_PENDING
+  PARTIALLY_REFUNDED
+  REFUNDED
+  NOT_APPLICABLE
+}
+
+enum DeliveryStatus {
+  NOT_SHIPPED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELAYED
+  DELIVERY_FAILED
+  DELIVERED
+  RETURN_TO_ORIGIN
+}
+
+enum EventType {
+  DELIVERY_ATTEMPT
+  DELIVERY_FAILED
+  DELIVERY_SUCCESSFUL
+  DELIVERY_DELAYED
+  ADDRESS_ISSUE
+  CUSTOMER_UNAVAILABLE
+  CUSTOMER_DISPUTE
+  MARKED_DELIVERED_NOT_RECEIVED
+  RESCHEDULE_REQUESTED
+  CANCELLATION_REQUESTED
+  DAMAGED_PARCEL
+  OTHER
+}
+
+enum EventStatus {
+  OPEN
+  RECORDED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+  ESCALATED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum EscalationStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
+  CLOSED
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model Customer {
+  id                String            @id @default(uuid())
+  customerCode      String            @unique
+  fullName          String
+  phone             String            @unique
+  preferredLanguage PreferredLanguage @default(ENGLISH)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  addresses Address[]
+  orders    Order[]
+
+  @@index([customerCode])
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  customerId String
+  label      String
+  line1      String
+  line2      String?
+  city       String
+  state      String
+  postalCode String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  orders   Order[]
+
+  @@index([customerId])
+}
+
+model Order {
+  id                String        @id @default(uuid())
+  orderNumber       String        @unique
+  customerId        String
+  shippingAddressId String
+  orderStatus       OrderStatus   @default(PLACED)
+  paymentMethod     PaymentMethod
+  paymentStatus     PaymentStatus @default(PENDING)
+  totalAmount       Decimal       @db.Decimal(10, 2)
+  currency          String        @default("INR")
+  placedAt          DateTime      @default(now())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  shippingAddress Address        @relation(fields: [shippingAddressId], references: [id])
+  items           OrderItem[]
+  shipments       Shipment[]
+  deliveryEvents  DeliveryEvent[]
+  escalations     Escalation[]
+
+  @@index([orderNumber])
+  @@index([customerId])
+  @@index([orderStatus])
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  productName     String
+  productCategory String
+  size            String?
+  quantity        Int
+  unitPrice       Decimal  @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+}
+
+model Shipment {
+  id                    String         @id @default(uuid())
+  shipmentNumber        String         @unique
+  orderId               String
+  deliveryStatus        DeliveryStatus @default(NOT_SHIPPED)
+  carrierName           String
+  trackingReference     String
+  estimatedDeliveryDate DateTime?
+  actualDeliveryAt      DateTime?
+  attemptCount          Int            @default(0)
+  lastFailureReason     String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  order          Order          @relation(fields: [orderId], references: [id])
+  deliveryEvents DeliveryEvent[]
+
+  @@index([orderId])
+  @@index([shipmentNumber])
+}
+
+model DeliveryEvent {
+  id                    String       @id @default(uuid())
+  eventNumber           String       @unique
+  orderId               String
+  shipmentId            String?
+  eventType             EventType
+  eventStatus           EventStatus  @default(OPEN)
+  description           String
+  failureReason         String?
+  attemptNumber         Int?
+  customerContacted     Boolean?
+  priority              Priority     @default(MEDIUM)
+  preferredDeliveryDate DateTime?
+  resolutionNotes       String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  order       Order       @relation(fields: [orderId], references: [id])
+  shipment    Shipment?   @relation(fields: [shipmentId], references: [id])
+  escalations Escalation[]
+
+  @@index([orderId])
+  @@index([shipmentId])
+  @@index([eventNumber])
+  @@index([eventType])
+}
+
+model Escalation {
+  id               String           @id @default(uuid())
+  escalationNumber String           @unique
+  orderId          String?
+  deliveryEventId  String?
+  reason           String
+  priority         Priority         @default(MEDIUM)
+  status           EscalationStatus @default(OPEN)
+  assignedTeam     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  order         Order?         @relation(fields: [orderId], references: [id])
+  deliveryEvent DeliveryEvent? @relation(fields: [deliveryEventId], references: [id])
+
+  @@index([orderId])
+  @@index([deliveryEventId])
+  @@index([escalationNumber])
+}

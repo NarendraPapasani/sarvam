@@ -1,0 +1,39 @@
+{
+  "name": "myntra-delivery-voice-agent-backend",
+  "version": "1.0.0",
+  "description": "REST API backend for a fictional Myntra delivery-support voice agent using Sarvam AI",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate dev --name init",
+    "prisma:seed": "node prisma/seed.js",
+    "prisma:reset": "npx prisma migrate reset --force",
+    "prisma:studio": "npx prisma studio"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "keywords": [
+    "myntra",
+    "delivery",
+    "voice-agent",
+    "sarvam",
+    "express"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.6",
+    "crypto": "^1.0.1",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  }
+}

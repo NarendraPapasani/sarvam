@@ -1,0 +1,504 @@
+openapi: 3.0.3
+info:
+  title: Myntra Delivery Support Voice Agent API
+  description: |
+    REST API backend for a fictional Myntra delivery-support voice agent.
+    Uses Sarvam AI for voice interactions. All data is simulated demo data.
+    
+    **DEMO ONLY** — This does not represent real Myntra policies or data.
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+security:
+  - ApiSecretAuth: []
+
+components:
+  securitySchemes:
+    ApiSecretAuth:
+      type: apiKey
+      in: header
+      name: x-api-secret
+      description: Shared API secret for demo authentication.
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          type: object
+          properties:
+            requestId:
+              type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+        meta:
+          type: object
+          properties:
+            requestId:
+              type: string
+
+    OrderStatus:
+      type: string
+      enum: [PLACED, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLATION_PENDING, CANCELLED]
+
+    DeliveryStatus:
+      type: string
+      enum: [NOT_SHIPPED, IN_TRANSIT, OUT_FOR_DELIVERY, DELAYED, DELIVERY_FAILED, DELIVERED, RETURN_TO_ORIGIN]
+
+    EventType:
+      type: string
+      enum: [DELIVERY_ATTEMPT, DELIVERY_FAILED, DELIVERY_SUCCESSFUL, DELIVERY_DELAYED, ADDRESS_ISSUE, CUSTOMER_UNAVAILABLE, CUSTOMER_DISPUTE, MARKED_DELIVERED_NOT_RECEIVED, RESCHEDULE_REQUESTED, CANCELLATION_REQUESTED, DAMAGED_PARCEL, OTHER]
+
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH, URGENT]
+
+paths:
+  /health:
+    get:
+      summary: Basic liveness check
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+
+  /api/v1/health/ready:
+    get:
+      summary: Readiness check with database connectivity
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Service and database are ready
+        '503':
+          description: Database unavailable
+
+  /api/v1/customers/{customerCode}:
+    get:
+      summary: Get customer by code
+      tags: [Customers]
+      parameters:
+        - name: customerCode
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CUST-1001
+      responses:
+        '200':
+          description: Customer found
+        '404':
+          description: Customer not found
+
+  /api/v1/customers/{customerCode}/orders:
+    get:
+      summary: Get paginated orders for a customer
+      tags: [Customers]
+      parameters:
+        - name: customerCode
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Paginated orders
+
+  /api/v1/orders:
+    get:
+      summary: List orders with filters
+      tags: [Orders]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: orderStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - name: deliveryStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/DeliveryStatus'
+        - name: paymentStatus
+          in: query
+          schema:
+            type: string
+        - name: orderNumber
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated orders
+
+  /api/v1/orders/{orderNumber}:
+    get:
+      summary: Get order details
+      tags: [Orders]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ORD-1001
+      responses:
+        '200':
+          description: Order details
+        '404':
+          description: Order not found
+
+  /api/v1/orders/{orderNumber}/status:
+    get:
+      summary: Get concise order status for Sarvam voice agent
+      tags: [Orders]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order status summary
+
+  /api/v1/orders/{orderNumber}/delivery-options:
+    get:
+      summary: Evaluate delivery options and eligible actions
+      tags: [Orders]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Eligible and unavailable actions
+
+  /api/v1/orders/{orderNumber}/delivery-events:
+    get:
+      summary: List delivery events for an order
+      tags: [Delivery Events]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chronological delivery events
+    post:
+      summary: Record a delivery event
+      tags: [Delivery Events]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventType, description]
+              properties:
+                eventType:
+                  $ref: '#/components/schemas/EventType'
+                description:
+                  type: string
+                shipmentNumber:
+                  type: string
+                failureReason:
+                  type: string
+                attemptNumber:
+                  type: integer
+                customerContacted:
+                  type: boolean
+                priority:
+                  $ref: '#/components/schemas/Priority'
+                preferredDeliveryDate:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: Event created
+
+  /api/v1/delivery-events/{eventNumber}:
+    get:
+      summary: Get a single delivery event
+      tags: [Delivery Events]
+      parameters:
+        - name: eventNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Event details
+
+  /api/v1/delivery-events/{eventNumber}/status:
+    patch:
+      summary: Update delivery event status
+      tags: [Delivery Events]
+      parameters:
+        - name: eventNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [OPEN, RECORDED, IN_PROGRESS, RESOLVED, REJECTED, ESCALATED]
+                resolutionNotes:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+        '409':
+          description: Invalid state transition
+
+  /api/v1/orders/{orderNumber}/reschedule-requests:
+    post:
+      summary: Request delivery rescheduling
+      tags: [Rescheduling]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [preferredDeliveryDate, reason]
+              properties:
+                preferredDeliveryDate:
+                  type: string
+                  format: date-time
+                preferredTimeWindow:
+                  type: string
+                reason:
+                  type: string
+                shipmentNumber:
+                  type: string
+      responses:
+        '201':
+          description: Reschedule request created
+        '422':
+          description: Not eligible for rescheduling
+
+  /api/v1/orders/{orderNumber}/cancellation-requests:
+    post:
+      summary: Request order cancellation
+      tags: [Cancellation]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, confirmation]
+              properties:
+                reason:
+                  type: string
+                confirmation:
+                  type: boolean
+                  description: Must be true for explicit customer consent
+      responses:
+        '201':
+          description: Cancellation request submitted
+        '422':
+          description: Not eligible for cancellation
+    get:
+      summary: Get cancellation request history
+      tags: [Cancellation]
+      parameters:
+        - name: orderNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cancellation request history
+
+  /api/v1/escalations:
+    post:
+      summary: Create a support escalation
+      tags: [Escalations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                orderNumber:
+                  type: string
+                eventNumber:
+                  type: string
+                reason:
+                  type: string
+                priority:
+                  $ref: '#/components/schemas/Priority'
+      responses:
+        '201':
+          description: Escalation created
+    get:
+      summary: List escalations
+      tags: [Escalations]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [OPEN, ASSIGNED, RESOLVED, CLOSED]
+        - name: priority
+          in: query
+          schema:
+            $ref: '#/components/schemas/Priority'
+      responses:
+        '200':
+          description: Paginated escalations
+
+  /api/v1/escalations/{escalationNumber}:
+    get:
+      summary: Get escalation details
+      tags: [Escalations]
+      parameters:
+        - name: escalationNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Escalation details
+
+  /api/v1/escalations/{escalationNumber}/status:
+    patch:
+      summary: Update escalation status
+      tags: [Escalations]
+      parameters:
+        - name: escalationNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [OPEN, ASSIGNED, RESOLVED, CLOSED]
+                assignedTeam:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+        '409':
+          description: Invalid state transition
+
+  /api/v1/demo/scenarios:
+    get:
+      summary: List seeded demo scenarios
+      tags: [Demo]
+      security: []
+      responses:
+        '200':
+          description: 20 seeded scenarios
+
+  /api/v1/demo/reset:
+    post:
+      summary: Reset demo data (development only)
+      tags: [Demo]
+      responses:
+        '200':
+          description: Data reset
+        '403':
+          description: Disabled in production
